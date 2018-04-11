@@ -14,6 +14,8 @@ class SentAna():
     Sentiment Analysis using NLTK library and BOW model
     '''
     _train_data = None
+    _test_data = None
+
 
     def __init__(self):
         pass
@@ -37,6 +39,27 @@ class SentAna():
         except Exception as e:
             print('Unexpected Error')
             print(e.__traceback__)
+
+    def import_test_dataset(self):
+        '''
+        imports the dataset from the path specified
+        INPUT : tsv file with reviews having the header as 'review'
+        '''
+        # importing the dataset
+        try:
+            _test_data = pd.read_csv(
+                'data/test.tsv', delimiter='\t',  quoting=3)
+            # quoting = 3 tells python to ignore doubled quotes
+            if _test_data is not None:
+                return _test_data
+            else:
+                print('Cannot import dataset. Test Dataset not found')
+        except FileNotFoundError:
+            print('Dataset not found. Please check the path')
+        except Exception as e:
+            print('Unexpected Error')
+            print(e.__traceback__)
+
 
     def text_preprocess(self, data):
         '''
@@ -70,7 +93,7 @@ class SentAna():
             review_text[i] = review_text[i].split()
 
             # removing the stopwords from the text
-            # converting stopwords into sets
+            # converting stopwords into sets for efficiency
             stopwords_sets = set(stopwords.words('english'))
             review_text[i] = [w for w in review_text[i]
                               if not w in stopwords_sets]
@@ -139,31 +162,66 @@ class SentAna():
     def classifier_model(self, feature_vectors):
         '''
         Fits the training set to the model
+        and after fitting pickles the classifier model
         '''
         train_data = self.import_train_dataset()
         classifier = RandomForestClassifier(n_estimators=100)
+
         print('Starting fit\n')
         classifier = classifier.fit(feature_vectors, train_data['sentiment'])
-
         print('Ending Fit')
-        pickle.dump(classifier, open('model1.sav','wb'))
+
         print('Start pickling process')
+        pickle.dump(classifier, open('model1.sav','wb'))
+        print('Done pickling the model')
+
+    def classifier_predict(self):
+        '''
+        Predicts the sentiments of the reviews and 
+        save it in tsv format
+        '''
+        print('Training Started...')
+        test_data = self.import_test_dataset()
+        cleaned_text = self.text_preprocess(test_data)
+        feature_vectors = self.count_vectorizer(cleaned_text)
+
+        print('Loading ML model...')
+        try:
+            classf_model = pickle.load(open('model_random_forest.sav', 'rb'))
+        except Exception:
+            print('Error Loading Model')
+
+        print('Predicting....')
+        predicted_sentiments = classf_model.predict(feature_vectors)
+        print('Prediction Completed!')
+
+        print('Saving the predictions')
+        output = pd.DataFrame( data={"id":test_data["id"], "sentiment":predicted_sentiments})
+        output.to_csv( "BOW_RF_pred.csv", index=False, quoting=3, escapechar='\\' )
+        print('Testing Completed!')
+        
 
 
 
 if __name__ == '__main__':
+
     o_sentana = SentAna()
-    train_data = o_sentana.import_train_dataset()
-    cleaned_text = o_sentana.text_preprocess(train_data)
-    feature_vectors = o_sentana.count_vectorizer(cleaned_text)
-    o_sentana.classifier_model(feature_vectors)
 
+    #***********TRAINING CODE************************************
+    # train_data = o_sentana.import_train_dataset()
+    # cleaned_text = o_sentana.text_preprocess(train_data)
+    # feature_vectors = o_sentana.count_vectorizer(cleaned_text)
+    # o_sentana.classifier_model(feature_vectors)
+    #*************************************************************
     
-    #*************UNIT TEST DATA*******
-    # print(cleaned_text[0])
+    #***********TESTING CODE*****************
+    o_sentana.classifier_predict()
 
+
+    #*************UNIT TEST DATA**************************************************
+    # print(cleaned_text[0])
     # fv = o_sentana.count_vectorizer(
     #   ['This is a a a a triple triple word', 'Wow This is a a a a triple word'])
     # o_sentana.classifier_model(fv)
     #print(np.asarray([1, 2], [2, 3]))
-    
+    #*****************************************************************************
